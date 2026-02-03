@@ -65,3 +65,20 @@ def tail_ops_log(vault_root: Path, limit: int = 20) -> list[OpsEntry]:
 
 def filter_ops_log(vault_root: Path, op: str) -> list[OpsEntry]:
     return [entry for entry in iter_ops_log(vault_root) if entry.op == op]
+
+
+def filter_ops_since(vault_root: Path, since: str) -> list[OpsEntry]:
+    try:
+        since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError("since must be ISO 8601 date-time") from exc
+
+    entries = []
+    for entry in iter_ops_log(vault_root):
+        try:
+            entry_dt = datetime.fromisoformat(entry.timestamp.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if entry_dt >= since_dt:
+            entries.append(entry)
+    return entries

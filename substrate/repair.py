@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Iterable
 
 from .constants import DEFAULT_SCHEMA_PATH
 from .io import FrontmatterError, dump_frontmatter, parse_frontmatter, safe_read_text, safe_write_text
@@ -52,3 +52,42 @@ def repair_file(
         return RepairResult(path=file_path, action="normalized", errors=[])
 
     return RepairResult(path=file_path, action="unchanged", errors=[])
+
+
+def _iter_markdown_files(root: Path, include_patterns: list[str]) -> Iterable[Path]:
+    seen: set[str] = set()
+    for pattern in include_patterns:
+        for path in sorted(root.rglob(pattern)):
+            if not path.is_file():
+                continue
+            key = str(path)
+            if key in seen:
+                continue
+            seen.add(key)
+            yield path
+
+
+def repair_tree(
+    vault_root: Path,
+    root: Path,
+    schema_path: Path | None = None,
+    quarantine_invalid: bool = True,
+    dry_run: bool = False,
+    include_patterns: list[str] | None = None,
+    limit: int | None = None,
+) -> list[RepairResult]:
+    results: list[RepairResult] = []
+    patterns = include_patterns or ["*.md"]
+    for path in _iter_markdown_files(root, patterns):
+        if limit is not None and len(results) >= limit:
+            break
+        results.append(
+            repair_file(
+                vault_root=vault_root,
+                file_path=path,
+                schema_path=schema_path,
+                quarantine_invalid=quarantine_invalid,
+                dry_run=dry_run,
+            )
+        )
+    return results

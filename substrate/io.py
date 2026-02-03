@@ -11,7 +11,7 @@ try:
 except Exception:  # pragma: no cover - dependency guard
     yaml = None
 
-from .constants import FRONTMATTER_DELIM
+from .constants import FRONTMATTER_DELIM, MAX_FRONTMATTER_BYTES
 
 
 class FrontmatterError(ValueError):
@@ -70,10 +70,30 @@ def parse_frontmatter(text: str) -> ParsedDocument:
     yaml_block = text[len(FRONTMATTER_DELIM) + 1 : end_idx]
     body = text[end_idx + len(FRONTMATTER_DELIM) + 2 :]
 
+    if len(yaml_block.encode("utf-8")) > MAX_FRONTMATTER_BYTES:
+        raise FrontmatterError("Frontmatter exceeds maximum size limit")
+
     if yaml is None:
         raise FrontmatterError("PyYAML is required to parse YAML frontmatter")
 
-    data = yaml.safe_load(yaml_block) or {}
+    class _UniqueKeyLoader(yaml.SafeLoader):  # type: ignore[misc]
+        pass
+
+    def _construct_mapping(loader, node, deep=False):
+        mapping = {}
+        for key_node, value_node in node.value:
+            key = loader.construct_object(key_node, deep=deep)
+            if key in mapping:
+                raise FrontmatterError(f"Duplicate frontmatter key: {key}")
+            value = loader.construct_object(value_node, deep=deep)
+            mapping[key] = value
+        return mapping
+
+    _UniqueKeyLoader.add_constructor(  # type: ignore[attr-defined]
+        yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _construct_mapping
+    )
+
+    data = yaml.load(yaml_block, Loader=_UniqueKeyLoader) or {}
     if not isinstance(data, dict):
         raise FrontmatterError("Frontmatter must be a YAML mapping")
 

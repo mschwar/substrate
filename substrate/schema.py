@@ -22,6 +22,13 @@ class Schema:
     raw: dict
 
 
+@dataclass(frozen=True)
+class ValidationResult:
+    errors: list[str]
+    warnings: list[str]
+    data: dict
+
+
 def load_schema(path: Path) -> Schema:
     if not path.exists():
         raise SchemaError(f"Schema file not found: {path}")
@@ -63,31 +70,45 @@ def validate_frontmatter(frontmatter: dict, schema: Schema) -> list[str]:
     pattern, minimum, maximum, minItems, format.
     Returns a list of error strings (empty if valid).
     """
+    return validate_frontmatter_verbose(frontmatter, schema).errors
+
+
+def validate_frontmatter_verbose(
+    frontmatter: dict,
+    schema: Schema,
+    *,
+    warn_unknown: bool = True,
+    coerce: bool = False,
+) -> ValidationResult:
     errors: list[str] = []
+    warnings: list[str] = []
     spec = schema.raw
+    data = dict(frontmatter) if coerce else frontmatter
 
     if spec.get("type") not in (None, "object"):
         errors.append("schema.type must be 'object' or omitted")
-        return errors
+        return ValidationResult(errors=errors, warnings=warnings, data=data)
 
     required = spec.get("required", [])
     if not isinstance(required, list):
         errors.append("schema.required must be a list")
-        return errors
+        return ValidationResult(errors=errors, warnings=warnings, data=data)
 
     for key in required:
-        if key not in frontmatter:
+        if key not in data:
             errors.append(f"missing required field: {key}")
 
     properties = spec.get("properties", {})
     if not isinstance(properties, dict):
         errors.append("schema.properties must be an object")
-        return errors
+        return ValidationResult(errors=errors, warnings=warnings, data=data)
 
     additional = spec.get("additionalProperties", True)
 
-    for key, value in frontmatter.items():
+    for key, value in data.items():
         if key not in properties:
+            if warn_unknown:
+                warnings.append(f"unknown field: {key}")
             if additional is False:
                 errors.append(f"unknown field not allowed: {key}")
             continue
@@ -99,8 +120,20 @@ def validate_frontmatter(frontmatter: dict, schema: Schema) -> list[str]:
 
         expected_type = prop.get("type")
         if expected_type and not _validate_type(value, expected_type):
-            errors.append(f"{key} must be of type {expected_type}")
-            continue
+            coerced = _coerce_value(value, expected_type)
+            if coerced is not None:
+                warnings.append(
+                    f"{key} coerced from {type(value).__name__} to {expected_type}"
+                )
+                if coerce:
+                    data[key] = coerced
+                    value = coerced
+                else:
+                    errors.append(f"{key} must be of type {expected_type}")
+                    continue
+            else:
+                errors.append(f"{key} must be of type {expected_type}")
+                continue
 
         if "enum" in prop:
             enum_vals = prop["enum"]
@@ -159,10 +192,51 @@ def validate_frontmatter(frontmatter: dict, schema: Schema) -> list[str]:
                     if not _validate_type(item, item_type):
                         errors.append(f"{key}[{idx}] must be of type {item_type}")
 
-    return errors
+    return ValidationResult(errors=errors, warnings=warnings, data=data)
 
 
 def _parse_iso8601(value: str) -> datetime:
     if value.endswith("Z"):
         value = value[:-1] + "+00:00"
     return datetime.fromisoformat(value)
+
+
+def _coerce_value(value: Any, expected_type: str) -> Any | None:
+    if expected_type == "string":
+        if isinstance(value, (int, float, bool)):
+            return str(value)
+        return None
+    if expected_type == "integer":
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, int):
+            return value
+        if isinstance(value, float) and value.is_integer():
+            return int(value)
+        if isinstance(value, str) and value.isdigit():
+            return int(value)
+        return None
+    if expected_type == "number":
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            try:
+                return float(value)
+            except ValueError:
+                return None
+        return None
+    if expected_type == "boolean":
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            lowered = value.lower()
+            if lowered in ("true", "false"):
+                return lowered == "true"
+        return None
+    if expected_type == "array":
+        if isinstance(value, tuple):
+            return list(value)
+        return None
+    return None

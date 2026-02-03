@@ -21,3 +21,6 @@ FRONTMATTER_DELIM = "---"
 DEFAULT_SCHEMA_PATH = Path("schema/v0.1.json")
 
 QUARANTINE_DIR = Path("_system/quarantine")
+
+# Frontmatter size limit in bytes (UTF-8)
+MAX_FRONTMATTER_BYTES = 64 * 1024

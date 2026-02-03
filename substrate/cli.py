@@ -6,9 +6,9 @@ from pathlib import Path
 
 from .constants import DEFAULT_SCHEMA_PATH
 from .io import dump_frontmatter, parse_frontmatter, safe_read_text, safe_write_text
-from .ops_log import append_ops_log, filter_ops_log, find_vault_root, tail_ops_log
+from .ops_log import append_ops_log, filter_ops_log, filter_ops_since, find_vault_root, tail_ops_log
 from .quarantine import list_quarantine, quarantine_file, restore_quarantined
-from .repair import repair_file
+from .repair import repair_file, repair_tree
 from .schema import SchemaError, load_schema, validate_frontmatter
 from .ulid import new_ulid
 from .vault import init_vault
@@ -130,7 +130,56 @@ def cmd_repair(args: argparse.Namespace) -> int:
             "dry_run": args.dry_run,
         },
     )
-    print(json.dumps({\n        \"file\": str(result.path),\n        \"action\": result.action,\n        \"errors\": result.errors,\n        \"quarantined\": result.quarantined.__dict__ if result.quarantined else None,\n    }, indent=2))\n    return 0
+    print(
+        json.dumps(
+            {
+                "file": str(result.path),
+                "action": result.action,
+                "errors": result.errors,
+                "quarantined": result.quarantined.__dict__ if result.quarantined else None,
+            },
+            indent=2,
+        )
+    )
+    return 0
+
+
+def cmd_repair_tree(args: argparse.Namespace) -> int:
+    vault_root = Path(args.vault)
+    schema_path = Path(args.schema) if args.schema else DEFAULT_SCHEMA_PATH
+    results = repair_tree(
+        vault_root=vault_root,
+        root=Path(args.root),
+        schema_path=schema_path,
+        quarantine_invalid=not args.no_quarantine,
+        dry_run=args.dry_run,
+        include_patterns=args.include,
+        limit=args.limit,
+    )
+    append_ops_log(
+        vault_root,
+        "file.repair_tree",
+        {
+            "root": str(args.root),
+            "count": len(results),
+            "dry_run": args.dry_run,
+        },
+    )
+    print(
+        json.dumps(
+            [
+                {
+                    "file": str(result.path),
+                    "action": result.action,
+                    "errors": result.errors,
+                    "quarantined": result.quarantined.__dict__ if result.quarantined else None,
+                }
+                for result in results
+            ],
+            indent=2,
+        )
+    )
+    return 0
 
 
 def cmd_ops_tail(args: argparse.Namespace) -> int:
@@ -141,6 +190,12 @@ def cmd_ops_tail(args: argparse.Namespace) -> int:
 
 def cmd_ops_filter(args: argparse.Namespace) -> int:
     entries = filter_ops_log(Path(args.vault), args.op)
+    print(json.dumps([e.__dict__ for e in entries], indent=2))
+    return 0
+
+
+def cmd_ops_since(args: argparse.Namespace) -> int:
+    entries = filter_ops_since(Path(args.vault), args.since)
     print(json.dumps([e.__dict__ for e in entries], indent=2))
     return 0
 
@@ -196,6 +251,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_repair.add_argument("--no-quarantine", action="store_true")
     p_repair.set_defaults(func=cmd_repair)
 
+    p_repair_tree = sub.add_parser("repair-tree", help="Normalize or quarantine a tree of markdown files")
+    p_repair_tree.add_argument("vault")
+    p_repair_tree.add_argument("root")
+    p_repair_tree.add_argument("--schema", help="Schema path (JSON/YAML)")
+    p_repair_tree.add_argument("--dry-run", action="store_true")
+    p_repair_tree.add_argument("--no-quarantine", action="store_true")
+    p_repair_tree.add_argument("--include", action="append", help="Glob pattern (repeatable)")
+    p_repair_tree.add_argument("--limit", type=int, help="Max files to process")
+    p_repair_tree.set_defaults(func=cmd_repair_tree)
+
     p_ops = sub.add_parser("ops-log", help="Query ops log")
     ops_sub = p_ops.add_subparsers(dest="ops_cmd", required=True)
 
@@ -208,6 +273,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_ops_filter.add_argument("vault")
     p_ops_filter.add_argument("op")
     p_ops_filter.set_defaults(func=cmd_ops_filter)
+
+    p_ops_since = ops_sub.add_parser("since", help="Filter ops log since timestamp")
+    p_ops_since.add_argument("vault")
+    p_ops_since.add_argument("since")
+    p_ops_since.set_defaults(func=cmd_ops_since)
 
     return parser
 
