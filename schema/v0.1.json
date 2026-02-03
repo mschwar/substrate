@@ -1,0 +1,102 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "type",
+    "created",
+    "updated",
+    "status",
+    "privacy"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": ["0.1"]
+    },
+    "id": {
+      "type": "string",
+      "format": "ulid",
+      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "note",
+        "document",
+        "photo",
+        "audio",
+        "web_clip",
+        "daily",
+        "entity",
+        "attachment",
+        "export",
+        "import_stub"
+      ]
+    },
+    "title": {
+      "type": "string"
+    },
+    "created": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T"
+    },
+    "updated": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "inbox",
+        "draft",
+        "canonical",
+        "archived",
+        "tombstoned"
+      ]
+    },
+    "privacy": {
+      "type": "string",
+      "enum": [
+        "public",
+        "private",
+        "sensitive"
+      ]
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "entities": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "attachments": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "sources": {
+      "type": "array"
+    },
+    "observed": {
+      "type": "array"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "summary": {
+      "type": "string"
+    }
+  }
+}
