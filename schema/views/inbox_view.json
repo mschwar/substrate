@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["total", "offset", "limit", "sort", "items", "filters"],
+  "properties": {
+    "total": {"type": "integer"},
+    "offset": {"type": "integer"},
+    "limit": {"type": ["integer", "null"]},
+    "sort": {"type": "string"},
+    "filters": {
+      "type": "object",
+      "required": ["status", "privacy"],
+      "properties": {
+        "status": {"type": "array"},
+        "privacy": {"type": "array"}
+      }
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "title", "status", "privacy", "created", "updated"],
+        "properties": {
+          "path": {"type": "string"},
+          "title": {"type": "string"},
+          "status": {"type": "string"},
+          "privacy": {"type": "string"},
+          "created": {"type": "string"},
+          "updated": {"type": "string"}
+        }
+      }
+    }
+  }
+}

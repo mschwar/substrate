@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Substrate UI Mock</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark">Substrate</span>
+          <span class="brand-tag">Local-first memory substrate</span>
+        </div>
+        <form class="search" id="search-form">
+          <input
+            id="search-input"
+            type="search"
+            placeholder="Search your vault..."
+            autocomplete="off"
+          />
+          <button type="submit">Search</button>
+        </form>
+        <div class="status">UI Mock · Phase 1</div>
+      </header>
+
+      <section class="grid">
+        <aside class="panel inbox">
+          <div class="panel-header">
+            <h2>Inbox</h2>
+            <div class="meta">Sort: updated desc</div>
+          </div>
+          <div class="filters">
+            <label>
+              Status
+              <select id="filter-status">
+                <option value="">All</option>
+                <option value="inbox">Inbox</option>
+                <option value="draft">Draft</option>
+                <option value="canonical">Canonical</option>
+                <option value="archived">Archived</option>
+                <option value="tombstoned">Tombstoned</option>
+              </select>
+            </label>
+            <label>
+              Privacy
+              <select id="filter-privacy">
+                <option value="">All</option>
+                <option value="public">Public</option>
+                <option value="private">Private</option>
+                <option value="sensitive">Sensitive</option>
+              </select>
+            </label>
+          </div>
+          <ul class="inbox-list" id="inbox"></ul>
+          <form class="capture" id="capture-form">
+            <div class="capture-title">Quick Capture</div>
+            <input id="capture-title" type="text" placeholder="Title" required />
+            <textarea id="capture-body" placeholder="Body (optional)"></textarea>
+            <button type="submit">Add to Inbox</button>
+          </form>
+        </aside>
+
+        <section class="panel item">
+          <div class="panel-header">
+            <h2>Item</h2>
+            <div class="meta">JSON-driven view</div>
+          </div>
+          <div class="item-actions">
+            <button id="promote-btn" type="button">Promote to Items</button>
+          </div>
+          <div class="search-block" id="search-block">
+            <div class="search-header">Search Results</div>
+            <ul class="search-list" id="search-results"></ul>
+          </div>
+          <div class="item-body">
+            <div class="item-title" id="item-title"></div>
+            <div class="item-meta" id="item-meta"></div>
+            <pre class="item-content" id="item-content"></pre>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="mock.js"></script>
+  </body>
+</html>

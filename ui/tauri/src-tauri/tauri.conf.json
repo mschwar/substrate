@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Substrate",
+  "version": "0.1.0",
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "Substrate",
+        "width": 1200,
+        "height": 800
+      }
+    ]
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "id",
+    "title",
+    "type",
+    "status",
+    "privacy",
+    "created",
+    "updated",
+    "path",
+    "frontmatter",
+    "body",
+    "attachments",
+    "backlinks",
+    "provenance"
+  ],
+  "properties": {
+    "id": {"type": ["string", "null"]},
+    "title": {"type": ["string", "null"]},
+    "type": {"type": ["string", "null"]},
+    "status": {"type": ["string", "null"]},
+    "privacy": {"type": ["string", "null"]},
+    "created": {"type": ["string", "null"]},
+    "updated": {"type": ["string", "null"]},
+    "path": {"type": "string"},
+    "frontmatter": {"type": "object"},
+    "body": {"type": "string"},
+    "attachments": {"type": "array"},
+    "backlinks": {"type": "array"},
+    "provenance": {
+      "type": "object",
+      "required": ["sources", "observed"],
+      "properties": {
+        "sources": {"type": "array"},
+        "observed": {"type": "array"}
+      }
+    }
+  }
+}

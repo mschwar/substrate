@@ -2,16 +2,29 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime
 from pathlib import Path
 
 from .constants import DEFAULT_SCHEMA_PATH
+from .inbox import list_inbox
 from .io import dump_frontmatter, parse_frontmatter, safe_read_text, safe_write_text
+from .items import append_daily_note, create_inbox_note, open_daily_note, promote_inbox_item, read_item, update_frontmatter
 from .ops_log import append_ops_log, filter_ops_log, filter_ops_since, find_vault_root, tail_ops_log
 from .quarantine import list_quarantine, quarantine_file, restore_quarantined
 from .repair import repair_file, repair_tree
 from .schema import SchemaError, load_schema, validate_frontmatter
+from .search import search_items
 from .ulid import new_ulid
 from .vault import init_vault
+from .views import inbox_view, load_item_view, search_view
+
+
+def _parse_csv(value: str | None) -> list[str] | None:
+    if not value:
+        return None
+    parsed = [part.strip() for part in value.split(",")]
+    cleaned = [part for part in parsed if part]
+    return cleaned or None
 
 
 def cmd_init(args: argparse.Namespace) -> int:
@@ -200,6 +213,168 @@ def cmd_ops_since(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_capture(args: argparse.Namespace) -> int:
+    vault_root = Path(args.vault)
+    tags = args.tags.split(",") if args.tags else None
+    path = create_inbox_note(
+        vault_root,
+        title=args.title,
+        body=args.body or "",
+        tags=tags,
+        privacy=args.privacy,
+    )
+    append_ops_log(
+        vault_root,
+        "inbox.capture",
+        {"file": str(path), "title": args.title, "tags": tags or []},
+    )
+    print(str(path))
+    return 0
+
+
+def cmd_daily_open(args: argparse.Namespace) -> int:
+    vault_root = Path(args.vault)
+    target_date = None
+    if args.date:
+        target_date = datetime.strptime(args.date, "%Y-%m-%d").date()
+    path = open_daily_note(vault_root, target_date=target_date)
+    append_ops_log(
+        vault_root,
+        "daily.open",
+        {"file": str(path), "date": args.date},
+    )
+    print(str(path))
+    return 0
+
+
+def cmd_daily_append(args: argparse.Namespace) -> int:
+    vault_root = Path(args.vault)
+    target_date = None
+    if args.date:
+        target_date = datetime.strptime(args.date, "%Y-%m-%d").date()
+    path = append_daily_note(vault_root, args.text, target_date=target_date)
+    append_ops_log(
+        vault_root,
+        "daily.append",
+        {"file": str(path), "date": args.date},
+    )
+    print(str(path))
+    return 0
+
+
+def cmd_frontmatter_set(args: argparse.Namespace) -> int:
+    updates = json.loads(args.updates)
+    try:
+        item = update_frontmatter(Path(args.file), updates)
+    except ValueError as exc:
+        print(str(exc))
+        return 1
+    vault_root = find_vault_root(Path(args.file))
+    if vault_root is not None:
+        append_ops_log(
+            vault_root,
+            "frontmatter.update",
+            {"file": str(item.path), "keys": list(updates.keys())},
+        )
+    print(json.dumps(item.frontmatter, indent=2))
+    return 0
+
+
+def cmd_item_show(args: argparse.Namespace) -> int:
+    item = read_item(Path(args.file))
+    print(json.dumps(item.frontmatter, indent=2))
+    print("---")
+    print(item.body)
+    return 0
+
+
+def cmd_item_view(args: argparse.Namespace) -> int:
+    payload = load_item_view(Path(args.file))
+    print(json.dumps(payload, indent=2))
+    return 0
+
+
+def cmd_promote(args: argparse.Namespace) -> int:
+    vault_root = Path(args.vault)
+    try:
+        target = promote_inbox_item(vault_root, Path(args.file), target_status=args.status)
+    except ValueError as exc:
+        print(str(exc))
+        return 1
+    append_ops_log(
+        vault_root,
+        "inbox.promote",
+        {"from": str(Path(args.file)), "to": str(target), "status": args.status},
+    )
+    print(str(target))
+    return 0
+
+
+def cmd_inbox_list(args: argparse.Namespace) -> int:
+    items = list_inbox(Path(args.vault))
+    print(
+        json.dumps(
+            [
+                {
+                    "path": str(item.path),
+                    "title": item.title,
+                    "status": item.status,
+                    "privacy": item.privacy,
+                    "updated": item.updated,
+                }
+                for item in items
+            ],
+            indent=2,
+        )
+    )
+    return 0
+
+
+def cmd_inbox_view(args: argparse.Namespace) -> int:
+    try:
+        payload = inbox_view(
+            Path(args.vault),
+            limit=args.limit,
+            offset=args.offset,
+            sort=args.sort,
+            status=_parse_csv(args.status),
+            privacy=_parse_csv(args.privacy),
+        )
+    except ValueError as exc:
+        print(str(exc))
+        return 1
+    print(json.dumps(payload, indent=2))
+    return 0
+
+
+def cmd_search(args: argparse.Namespace) -> int:
+    results = search_items(
+        Path(args.vault),
+        args.query,
+        status=_parse_csv(args.status),
+        privacy=_parse_csv(args.privacy),
+    )
+    print(
+        json.dumps(
+            [
+                {
+                    "path": str(result.path),
+                    "title": result.title,
+                    "type": result.type,
+                    "status": result.status,
+                    "privacy": result.privacy,
+                    "updated": result.updated,
+                    "snippet": result.snippet,
+                    "score": result.score,
+                }
+                for result in results
+            ],
+            indent=2,
+        )
+    )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="substrate")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -278,6 +453,67 @@ def build_parser() -> argparse.ArgumentParser:
     p_ops_since.add_argument("vault")
     p_ops_since.add_argument("since")
     p_ops_since.set_defaults(func=cmd_ops_since)
+
+    p_capture = sub.add_parser("capture", help="Capture a text note to inbox")
+    p_capture.add_argument("vault")
+    p_capture.add_argument("--title", required=True)
+    p_capture.add_argument("--body")
+    p_capture.add_argument("--tags", help="Comma-separated tags")
+    p_capture.add_argument("--privacy", default="private")
+    p_capture.set_defaults(func=cmd_capture)
+
+    p_daily = sub.add_parser("daily", help="Daily notes")
+    daily_sub = p_daily.add_subparsers(dest="daily_cmd", required=True)
+
+    p_daily_open = daily_sub.add_parser("open", help="Open or create daily note")
+    p_daily_open.add_argument("vault")
+    p_daily_open.add_argument("--date", help="YYYY-MM-DD")
+    p_daily_open.set_defaults(func=cmd_daily_open)
+
+    p_daily_append = daily_sub.add_parser("append", help="Append text to daily note")
+    p_daily_append.add_argument("vault")
+    p_daily_append.add_argument("text")
+    p_daily_append.add_argument("--date", help="YYYY-MM-DD")
+    p_daily_append.set_defaults(func=cmd_daily_append)
+
+    p_frontmatter = sub.add_parser("frontmatter-set", help="Update frontmatter fields")
+    p_frontmatter.add_argument("file")
+    p_frontmatter.add_argument("updates", help="JSON dict of updates")
+    p_frontmatter.set_defaults(func=cmd_frontmatter_set)
+
+    p_item_show = sub.add_parser("item-show", help="Show frontmatter and body")
+    p_item_show.add_argument("file")
+    p_item_show.set_defaults(func=cmd_item_show)
+
+    p_item_view = sub.add_parser("item-view", help="Show item JSON for UI")
+    p_item_view.add_argument("file")
+    p_item_view.set_defaults(func=cmd_item_view)
+
+    p_inbox_list = sub.add_parser("inbox-list", help="List inbox items")
+    p_inbox_list.add_argument("vault")
+    p_inbox_list.set_defaults(func=cmd_inbox_list)
+
+    p_inbox_view = sub.add_parser("inbox-view", help="Inbox view JSON for UI")
+    p_inbox_view.add_argument("vault")
+    p_inbox_view.add_argument("--limit", type=int)
+    p_inbox_view.add_argument("--offset", type=int, default=0)
+    p_inbox_view.add_argument("--sort", default="updated_desc")
+    p_inbox_view.add_argument("--status", help="Comma-separated status filter")
+    p_inbox_view.add_argument("--privacy", help="Comma-separated privacy filter")
+    p_inbox_view.set_defaults(func=cmd_inbox_view)
+
+    p_search = sub.add_parser("search", help="Search vault (basic scan)")
+    p_search.add_argument("vault")
+    p_search.add_argument("query")
+    p_search.add_argument("--status", help="Comma-separated status filter")
+    p_search.add_argument("--privacy", help="Comma-separated privacy filter")
+    p_search.set_defaults(func=cmd_search)
+
+    p_promote = sub.add_parser("promote", help="Promote inbox item to items/")
+    p_promote.add_argument("vault")
+    p_promote.add_argument("file")
+    p_promote.add_argument("--status", default="canonical")
+    p_promote.set_defaults(func=cmd_promote)
 
     return parser
 
