@@ -24,6 +24,7 @@
         </form>
         <div class="status">UI Mock · Phase 1</div>
       </header>
+      <div class="banner hidden" id="banner"></div>
 
       <section class="grid">
         <aside class="panel inbox">
@@ -64,11 +65,44 @@
 
         <section class="panel item">
           <div class="panel-header">
-            <h2>Item</h2>
-            <div class="meta">JSON-driven view</div>
+            <h2>Item Editor</h2>
+            <div class="meta">Frontmatter + body</div>
           </div>
           <div class="item-actions">
-            <button id="promote-btn" type="button">Promote to Items</button>
+            <div class="action-group">
+              <button id="save-btn" type="button" disabled>Save</button>
+              <span class="save-hint" id="save-hint" aria-live="polite">No changes</span>
+            </div>
+            <div class="action-group promote">
+              <input
+                id="promote-confirm"
+                type="text"
+                placeholder="Type PROMOTE"
+                autocomplete="off"
+              />
+              <button id="promote-btn" type="button" disabled>Promote to Items</button>
+              <span class="promote-hint" id="promote-hint">Type PROMOTE to enable.</span>
+            </div>
+          </div>
+          <div class="validation hidden" id="validation-block" data-state="idle" aria-live="polite">
+            <div class="validation-title">Validation</div>
+            <ul class="validation-list" id="validation-errors"></ul>
+          </div>
+          <div class="daily-panel">
+            <div class="daily-header">
+              <div>Daily Notes</div>
+              <div class="meta">Today + append</div>
+            </div>
+            <div class="daily-actions">
+              <button id="daily-open-btn" type="button">Open Today</button>
+              <div class="daily-append">
+                <textarea
+                  id="daily-append-text"
+                  placeholder="Append to today's note..."
+                ></textarea>
+                <button id="daily-append-btn" type="button">Append</button>
+              </div>
+            </div>
           </div>
           <div class="search-block" id="search-block">
             <div class="search-header">Search Results</div>
@@ -77,7 +111,93 @@
           <div class="item-body">
             <div class="item-title" id="item-title"></div>
             <div class="item-meta" id="item-meta"></div>
-            <pre class="item-content" id="item-content"></pre>
+            <form class="editor" id="editor-form">
+              <div class="editor-grid">
+                <label>
+                  Title
+                  <input id="fm-title" type="text" placeholder="Title" />
+                </label>
+                <label>
+                  Type
+                  <select id="fm-type">
+                    <option value="">Select type</option>
+                    <option value="note">note</option>
+                    <option value="document">document</option>
+                    <option value="photo">photo</option>
+                    <option value="audio">audio</option>
+                    <option value="web_clip">web_clip</option>
+                    <option value="daily">daily</option>
+                    <option value="entity">entity</option>
+                    <option value="attachment">attachment</option>
+                    <option value="export">export</option>
+                    <option value="import_stub">import_stub</option>
+                  </select>
+                </label>
+                <label>
+                  Status
+                  <select id="fm-status">
+                    <option value="">Select status</option>
+                    <option value="inbox">inbox</option>
+                    <option value="draft">draft</option>
+                    <option value="canonical">canonical</option>
+                    <option value="archived">archived</option>
+                    <option value="tombstoned">tombstoned</option>
+                  </select>
+                </label>
+                <label>
+                  Privacy
+                  <select id="fm-privacy">
+                    <option value="">Select privacy</option>
+                    <option value="public">public</option>
+                    <option value="private">private</option>
+                    <option value="sensitive">sensitive</option>
+                  </select>
+                </label>
+              </div>
+              <label>
+                Summary
+                <textarea id="fm-summary" placeholder="Summary (optional)"></textarea>
+              </label>
+              <div class="editor-grid">
+                <label>
+                  Tags
+                  <input id="fm-tags" type="text" placeholder="tag1, tag2" />
+                </label>
+                <label>
+                  Confidence
+                  <input
+                    id="fm-confidence"
+                    type="number"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    placeholder="0.0 - 1.0"
+                  />
+                </label>
+                <label>
+                  Schema Version
+                  <input id="fm-schema" type="text" readonly />
+                </label>
+                <label>
+                  ID
+                  <input id="fm-id" type="text" readonly />
+                </label>
+              </div>
+              <div class="editor-grid">
+                <label>
+                  Created
+                  <input id="fm-created" type="text" readonly />
+                </label>
+                <label>
+                  Updated
+                  <input id="fm-updated" type="text" readonly />
+                </label>
+              </div>
+              <label>
+                Body
+                <textarea id="item-body" placeholder="Write your note..."></textarea>
+              </label>
+            </form>
           </div>
         </section>
       </section>

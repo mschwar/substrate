@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .constants import DEFAULT_SCHEMA_PATH
+from .config import rotate_api_token
 from .inbox import list_inbox
 from .io import dump_frontmatter, parse_frontmatter, safe_read_text, safe_write_text
 from .items import append_daily_note, create_inbox_note, open_daily_note, promote_inbox_item, read_item, update_frontmatter
@@ -375,6 +376,14 @@ def cmd_search(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_api_token_rotate(args: argparse.Namespace) -> int:
+    vault_root = Path(args.vault)
+    token = rotate_api_token(vault_root)
+    append_ops_log(vault_root, "api.token.rotate", {"vault": str(vault_root)})
+    print(token)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="substrate")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -508,6 +517,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_search.add_argument("--status", help="Comma-separated status filter")
     p_search.add_argument("--privacy", help="Comma-separated privacy filter")
     p_search.set_defaults(func=cmd_search)
+
+    p_token = sub.add_parser("api-token", help="Manage API token")
+    token_sub = p_token.add_subparsers(dest="token_cmd", required=True)
+
+    p_token_rotate = token_sub.add_parser("rotate", help="Rotate API token")
+    p_token_rotate.add_argument("vault")
+    p_token_rotate.set_defaults(func=cmd_api_token_rotate)
 
     p_promote = sub.add_parser("promote", help="Promote inbox item to items/")
     p_promote.add_argument("vault")

@@ -26,3 +26,8 @@
 - Added a JS invoke bridge for future Tauri command wiring.
 - Added Tauri command registry stubs under `ui/tauri/src-tauri/src/`.
 - Added a standalone Python API server (`tools/api_server.py`) and Tauri bridge shim (`tools/tauri_bridge.py`).
+- Refactored API logic into `substrate/api.py`; added optional token auth across API/server/proxy.
+- Added FastAPI server script (`tools/api_fastapi.py`) and Tauri HTTP client stubs (reqwest).
+- Added CLI token rotation (`api-token rotate`) and UI auth error banner; FastAPI is now the recommended API server.
+- Added canonical API contract doc at `docs/API_CONTRACT.md`.
+- Implemented Phase 1 editor API endpoints (`/api/validate`, `/api/item/update`, `/api/daily/open`, `/api/daily/append`).

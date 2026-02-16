@@ -10,6 +10,10 @@ fn main() {
             commands::search,
             commands::capture,
             commands::promote,
+            commands::validate,
+            commands::item_update,
+            commands::daily_open,
+            commands::daily_append,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

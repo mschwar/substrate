@@ -42,6 +42,36 @@ async function mockInvoke(command, payload) {
         body: JSON.stringify(payload),
       });
     }
+    case "validate": {
+      return fetchJson("/api/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    }
+    case "item_update": {
+      return fetchJson("/api/item/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    }
+    case "daily_open": {
+      const params = new URLSearchParams();
+      if (payload && payload.date) {
+        params.set("date", payload.date);
+      }
+      const suffix = params.toString();
+      const url = suffix ? `/api/daily/open?${suffix}` : "/api/daily/open";
+      return fetchJson(url);
+    }
+    case "daily_append": {
+      return fetchJson("/api/daily/append", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    }
     default:
       throw new Error(`Unknown command: ${command}`);
   }

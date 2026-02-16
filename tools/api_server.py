@@ -7,9 +7,19 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from substrate.io import canonicalize_path
-from substrate.items import create_inbox_note, promote_inbox_item
-from substrate.views import inbox_view, load_item_view, search_view
+from substrate.api import (
+    ApiError,
+    api_capture,
+    api_daily_append,
+    api_daily_open,
+    api_inbox,
+    api_item,
+    api_item_update,
+    api_promote,
+    api_search,
+    api_validate,
+)
+from substrate.config import load_api_token
 
 
 def _parse_csv(value: str | None) -> list[str] | None:
@@ -33,57 +43,82 @@ def _error(handler: BaseHTTPRequestHandler, message: str, status: int = 400) -> 
     _json_response(handler, {"error": message}, status=status)
 
 
-def make_handler(vault_root: Path):
+def _extract_token(handler: BaseHTTPRequestHandler, query: dict) -> str | None:
+    header = handler.headers.get("X-Substrate-Token")
+    if header:
+        return header
+    token_param = query.get("token", [""])[0]
+    return token_param or None
+
+
+def make_handler(vault_root: Path, token_required: str | None):
     class APIHandler(BaseHTTPRequestHandler):
         def do_GET(self):
             parsed = urlparse(self.path)
             query = parse_qs(parsed.query)
-            if parsed.path == "/api/inbox":
-                limit = int(query.get("limit", ["20"])[0])
-                offset = int(query.get("offset", ["0"])[0])
-                sort = query.get("sort", ["updated_desc"])[0]
-                status = _parse_csv(query.get("status", [""])[0])
-                privacy = _parse_csv(query.get("privacy", [""])[0])
-                try:
-                    payload = inbox_view(
+            token = _extract_token(self, query)
+            try:
+                if parsed.path == "/api/inbox":
+                    limit = int(query.get("limit", ["20"])[0])
+                    offset = int(query.get("offset", ["0"])[0])
+                    sort = query.get("sort", ["updated_desc"])[0]
+                    status = _parse_csv(query.get("status", [""])[0])
+                    privacy = _parse_csv(query.get("privacy", [""])[0])
+                    payload = api_inbox(
                         vault_root,
                         limit=limit,
                         offset=offset,
                         sort=sort,
                         status=status,
                         privacy=privacy,
+                        token_required=token_required,
+                        token_provided=token,
                     )
-                except ValueError as exc:
-                    _error(self, str(exc), status=400)
+                    _json_response(self, payload)
                     return
-                _json_response(self, payload)
-                return
 
-            if parsed.path == "/api/item":
-                path_value = query.get("path", [""])[0]
-                if not path_value:
-                    _error(self, "missing path parameter", status=400)
+                if parsed.path == "/api/item":
+                    path_value = query.get("path", [""])[0]
+                    payload = api_item(
+                        vault_root,
+                        path_value=path_value,
+                        token_required=token_required,
+                        token_provided=token,
+                    )
+                    _json_response(self, payload)
                     return
-                try:
-                    path = canonicalize_path(vault_root, Path(path_value))
-                except ValueError:
-                    _error(self, "invalid path", status=400)
-                    return
-                if not path.exists():
-                    _error(self, "path not found", status=404)
-                    return
-                payload = load_item_view(path)
-                _json_response(self, payload)
-                return
 
-            if parsed.path == "/api/search":
-                q = query.get("q", [""])[0]
-                limit = int(query.get("limit", ["20"])[0])
-                offset = int(query.get("offset", ["0"])[0])
-                status = _parse_csv(query.get("status", [""])[0])
-                privacy = _parse_csv(query.get("privacy", [""])[0])
-                payload = search_view(vault_root, q, limit=limit, offset=offset, status=status, privacy=privacy)
-                _json_response(self, payload)
+                if parsed.path == "/api/search":
+                    q = query.get("q", [""])[0]
+                    limit = int(query.get("limit", ["20"])[0])
+                    offset = int(query.get("offset", ["0"])[0])
+                    status = _parse_csv(query.get("status", [""])[0])
+                    privacy = _parse_csv(query.get("privacy", [""])[0])
+                    payload = api_search(
+                        vault_root,
+                        query=q,
+                        limit=limit,
+                        offset=offset,
+                        status=status,
+                        privacy=privacy,
+                        token_required=token_required,
+                        token_provided=token,
+                    )
+                    _json_response(self, payload)
+                    return
+
+                if parsed.path == "/api/daily/open":
+                    date_value = query.get("date", [""])[0] or None
+                    payload = api_daily_open(
+                        vault_root,
+                        date_value=date_value,
+                        token_required=token_required,
+                        token_provided=token,
+                    )
+                    _json_response(self, payload)
+                    return
+            except ApiError as exc:
+                _error(self, exc.message, status=exc.status)
                 return
 
             _error(self, "not found", status=404)
@@ -99,45 +134,70 @@ def make_handler(vault_root: Path):
             except json.JSONDecodeError:
                 _error(self, "invalid JSON", status=400)
                 return
+            token = _extract_token(self, parse_qs(parsed.query))
 
-            if parsed.path == "/api/capture":
-                title = str(payload.get("title", "")).strip()
-                body = str(payload.get("body", ""))
-                tags = payload.get("tags")
-                privacy = str(payload.get("privacy", "private"))
-                if tags is not None and not isinstance(tags, list):
-                    _error(self, "tags must be an array", status=400)
+            try:
+                if parsed.path == "/api/capture":
+                    data = api_capture(
+                        vault_root,
+                        payload=payload,
+                        token_required=token_required,
+                        token_provided=token,
+                    )
+                    _json_response(self, data)
                     return
-                if not title:
-                    _error(self, "title is required", status=400)
-                    return
-                path = create_inbox_note(
-                    vault_root,
-                    title=title,
-                    body=body,
-                    tags=tags,
-                    privacy=privacy,
-                )
-                _json_response(self, {"path": str(path)})
-                return
 
-            if parsed.path == "/api/promote":
-                path_value = str(payload.get("path", ""))
-                status_value = str(payload.get("status", "canonical"))
-                if not path_value:
-                    _error(self, "path is required", status=400)
+                if parsed.path == "/api/promote":
+                    data = api_promote(
+                        vault_root,
+                        payload=payload,
+                        token_required=token_required,
+                        token_provided=token,
+                    )
+                    _json_response(self, data)
                     return
-                try:
-                    path = canonicalize_path(vault_root, Path(path_value))
-                except ValueError:
-                    _error(self, "invalid path", status=400)
+
+                if parsed.path == "/api/validate":
+                    data = api_validate(
+                        vault_root,
+                        payload=payload,
+                        token_required=token_required,
+                        token_provided=token,
+                    )
+                    _json_response(self, data)
                     return
-                try:
-                    target = promote_inbox_item(vault_root, path, target_status=status_value)
-                except ValueError as exc:
-                    _error(self, str(exc), status=400)
+
+                if parsed.path == "/api/item/update":
+                    data = api_item_update(
+                        vault_root,
+                        payload=payload,
+                        token_required=token_required,
+                        token_provided=token,
+                    )
+                    _json_response(self, data)
                     return
-                _json_response(self, {"path": str(target)})
+
+                if parsed.path == "/api/daily/append":
+                    data = api_daily_append(
+                        vault_root,
+                        payload=payload,
+                        token_required=token_required,
+                        token_provided=token,
+                    )
+                    _json_response(self, data)
+                    return
+
+                if parsed.path == "/api/daily/open":
+                    data = api_daily_open(
+                        vault_root,
+                        date_value=payload.get("date"),
+                        token_required=token_required,
+                        token_provided=token,
+                    )
+                    _json_response(self, data)
+                    return
+            except ApiError as exc:
+                _error(self, exc.message, status=exc.status)
                 return
 
             _error(self, "not found", status=404)
@@ -152,12 +212,17 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8123)
     parser.add_argument("--vault", required=True, help="Vault root")
+    parser.add_argument("--token", help="API token (optional)")
     args = parser.parse_args()
 
     vault_root = Path(args.vault).resolve()
-    handler = make_handler(vault_root)
+    token = args.token or load_api_token(vault_root)
+    handler = make_handler(vault_root, token)
     server = HTTPServer(("", args.port), handler)
     print(f"API server running at http://127.0.0.1:{args.port}")
+    print("Deprecated: use tools/api_fastapi.py for the default server")
+    if token:
+        print("API token required")
     server.serve_forever()
 
 

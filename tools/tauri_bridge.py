@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import urllib.parse
 import urllib.request
 
 
-def _post(url: str, payload: dict) -> dict:
+def _post(url: str, payload: dict, token: str | None) -> dict:
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         url,
@@ -14,24 +15,31 @@ def _post(url: str, payload: dict) -> dict:
         headers={"Content-Type": "application/json"},
         method="POST",
     )
+    if token:
+        req.add_header("X-Substrate-Token", token)
     with urllib.request.urlopen(req) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def _get(url: str) -> dict:
-    with urllib.request.urlopen(url) as resp:
+def _get(url: str, token: str | None) -> dict:
+    req = urllib.request.Request(url)
+    if token:
+        req.add_header("X-Substrate-Token", token)
+    with urllib.request.urlopen(req) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--api", default="http://127.0.0.1:8123")
+    parser.add_argument("--api", default=os.environ.get("SUBSTRATE_API", "http://127.0.0.1:8123"))
+    parser.add_argument("--token", default=os.environ.get("SUBSTRATE_TOKEN"))
     parser.add_argument("command")
     parser.add_argument("payload", nargs="?")
     args = parser.parse_args()
 
     payload = json.loads(args.payload) if args.payload else {}
     api = args.api.rstrip("/")
+    token = args.token
 
     if args.command == "inbox_view":
         params = "&".join(
@@ -44,10 +52,10 @@ def main() -> int:
                 "privacy": payload.get("privacy", ""),
             }.items()
         )
-        result = _get(f"{api}/api/inbox?{params}")
+        result = _get(f"{api}/api/inbox?{params}", token)
     elif args.command == "item_view":
         path = payload.get("path", "")
-        result = _get(f"{api}/api/item?path={urllib.parse.quote(path)}")
+        result = _get(f"{api}/api/item?path={urllib.parse.quote(path)}", token)
     elif args.command == "search":
         params = "&".join(
             f"{key}={urllib.parse.quote(str(value))}"
@@ -59,11 +67,26 @@ def main() -> int:
                 "privacy": payload.get("privacy", ""),
             }.items()
         )
-        result = _get(f"{api}/api/search?{params}")
+        result = _get(f"{api}/api/search?{params}", token)
     elif args.command == "capture":
-        result = _post(f"{api}/api/capture", payload)
+        result = _post(f"{api}/api/capture", payload, token)
     elif args.command == "promote":
-        result = _post(f"{api}/api/promote", payload)
+        result = _post(f"{api}/api/promote", payload, token)
+    elif args.command == "validate":
+        result = _post(f"{api}/api/validate", payload, token)
+    elif args.command == "item_update":
+        result = _post(f"{api}/api/item/update", payload, token)
+    elif args.command == "daily_open":
+        date_value = payload.get("date")
+        if date_value:
+            result = _get(
+                f"{api}/api/daily/open?date={urllib.parse.quote(str(date_value))}",
+                token,
+            )
+        else:
+            result = _get(f"{api}/api/daily/open", token)
+    elif args.command == "daily_append":
+        result = _post(f"{api}/api/daily/append", payload, token)
     else:
         print(json.dumps({"error": "unknown command"}))
         return 1

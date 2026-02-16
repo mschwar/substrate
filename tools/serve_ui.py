@@ -26,19 +26,24 @@ class ReuseTCPServer(socketserver.TCPServer):
     allow_reuse_address = True
 
 
-def _proxy_get(api: str, path: str) -> dict:
-    with urlopen(api + path) as resp:
-        return json.loads(resp.read().decode("utf-8"))
-
-
-def _proxy_post(api: str, path: str, payload: dict) -> dict:
-    data = json.dumps(payload).encode("utf-8")
-    req = Request(api + path, data=data, headers={"Content-Type": "application/json"}, method="POST")
+def _proxy_get(api: str, path: str, token: str | None) -> dict:
+    req = Request(api + path)
+    if token:
+        req.add_header("X-Substrate-Token", token)
     with urlopen(req) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def make_handler(ui_root: Path, api_base: str | None):
+def _proxy_post(api: str, path: str, payload: dict, token: str | None) -> dict:
+    data = json.dumps(payload).encode("utf-8")
+    req = Request(api + path, data=data, headers={"Content-Type": "application/json"}, method="POST")
+    if token:
+        req.add_header("X-Substrate-Token", token)
+    with urlopen(req) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def make_handler(ui_root: Path, api_base: str | None, token: str | None):
     class SubstrateHandler(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, directory=str(ui_root), **kwargs)
@@ -50,7 +55,7 @@ def make_handler(ui_root: Path, api_base: str | None):
                     _error(self, "api base not configured", status=500)
                     return
                 try:
-                    payload = _proxy_get(api_base, parsed.path + ("?" + parsed.query if parsed.query else ""))
+                    payload = _proxy_get(api_base, parsed.path + ("?" + parsed.query if parsed.query else ""), token)
                 except Exception as exc:
                     _error(self, f"api error: {exc}", status=502)
                     return
@@ -77,7 +82,7 @@ def make_handler(ui_root: Path, api_base: str | None):
                 _error(self, "invalid JSON", status=400)
                 return
             try:
-                data = _proxy_post(api_base, parsed.path, payload)
+                data = _proxy_post(api_base, parsed.path, payload, token)
             except Exception as exc:
                 _error(self, f"api error: {exc}", status=502)
                 return
@@ -91,16 +96,29 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--root", default="ui/tauri/src")
     parser.add_argument("--api", help="API base URL", default="http://127.0.0.1:8123")
+    parser.add_argument("--token", help="API token")
+    parser.add_argument("--vault", help="Vault root (to load API token)")
     args = parser.parse_args()
 
     root = Path(args.root).resolve()
     if not root.exists():
         raise SystemExit(f"UI root not found: {root}")
 
-    handler = make_handler(root, args.api)
+    token = args.token
+    if token is None and args.vault:
+        try:
+            from substrate.config import load_api_token
+        except Exception:
+            load_api_token = None
+        if load_api_token is not None:
+            token = load_api_token(Path(args.vault))
+
+    handler = make_handler(root, args.api, token)
     with ReuseTCPServer(("", args.port), handler) as httpd:
         print(f"Serving {root} at http://127.0.0.1:{args.port}")
         print(f"Proxying API to {args.api}")
+        if token:
+            print("Proxying with API token")
         httpd.serve_forever()
 
 

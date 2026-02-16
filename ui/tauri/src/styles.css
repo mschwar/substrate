@@ -60,6 +60,19 @@ body {
   border: 1px solid var(--border);
 }
 
+.banner {
+  background: #ffe7e1;
+  border: 1px solid #f3b3a3;
+  color: #7a2f1f;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+}
+
+.banner.hidden {
+  display: none;
+}
+
 .search {
   display: flex;
   gap: 8px;
@@ -184,28 +197,198 @@ body {
   margin-bottom: 12px;
 }
 
-.item-content {
-  white-space: pre-wrap;
-  background: #fbf7f1;
-  padding: 16px;
-  border-radius: 12px;
-  border: 1px dashed var(--border);
-  font-family: "IBM Plex Mono", "Fira Code", monospace;
-  font-size: 13px;
-}
-
 .item-actions {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.action-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.action-group.promote {
   justify-content: flex-end;
 }
 
-.item-actions button {
+.action-group input {
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 6px 12px;
   font-size: 12px;
   background: #fffdf9;
+  min-width: 160px;
+}
+
+.save-hint,
+.promote-hint {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.promote-hint {
+  flex-basis: 100%;
+}
+
+.item-actions button,
+.daily-actions button {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  background: #fffdf9;
   cursor: pointer;
+}
+
+#save-btn {
+  background: var(--accent);
+  border: none;
+  color: #fff;
+}
+
+.item-actions button:disabled,
+.daily-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.validation {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #f1f7f0;
+  color: #1f4a2b;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.validation.hidden {
+  display: none;
+}
+
+.validation[data-state="invalid"] {
+  background: #ffe7e1;
+  border-color: #f3b3a3;
+  color: #7a2f1f;
+}
+
+.validation[data-state="pending"] {
+  background: #fff4d6;
+  border-color: #f0d08b;
+  color: #7a5a1f;
+}
+
+.validation[data-state="warning"] {
+  background: #fff4d6;
+  border-color: #f0d08b;
+  color: #7a5a1f;
+}
+
+.validation-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.validation-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.daily-panel {
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #fffdf8;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.daily-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.daily-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.daily-append {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  min-width: 240px;
+}
+
+.daily-append textarea {
+  flex: 1;
+  min-height: 60px;
+}
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.editor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.editor input,
+.editor select,
+.editor textarea,
+.daily-append textarea {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  background: #fffdf9;
+  color: var(--ink);
+}
+
+.editor textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+.editor input[readonly] {
+  background: #f4efe6;
+  color: var(--muted);
+}
+
+#item-body {
+  min-height: 220px;
+  font-family: "IBM Plex Mono", "Fira Code", monospace;
+  background: #fbf7f1;
 }
 
 .capture {

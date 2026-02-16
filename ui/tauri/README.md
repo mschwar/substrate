@@ -6,3 +6,7 @@ it only establishes the expected directory structure and placeholder files.
 Planned:
 - `src-tauri/` (Rust backend)
 - `src/` (frontend UI)
+
+Docs:
+- `docs/UI_EDITOR_V0.md` for the editor mock behaviors.
+- `docs/API_CONTRACT.md` for the Phase 1 API endpoints.
